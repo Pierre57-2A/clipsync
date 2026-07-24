@@ -1,6 +1,6 @@
 // Service worker : met en cache la coquille de l'app (chargement hors-ligne).
 // N'intercepte JAMAIS l'API (/ws, /files, /clip, /health).
-const CACHE = 'clipsync-v13';
+const CACHE = 'clipsync-v14';
 const ASSETS = [
   '/', '/index.html', '/app.js', '/crypto.js', '/styles.css', '/logo.png',
   '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png',
