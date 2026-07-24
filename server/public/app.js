@@ -2,6 +2,7 @@ import { authToken, encKey, accountId, encryptText, encryptBytes, decryptText, d
 
 const $ = (s) => document.querySelector(s);
 const CFG = 'clipsync.cfg';
+const HIST = 'clipsync.hist';
 
 function loadCfg() {
   let c = {};
@@ -81,12 +82,12 @@ async function onClip(msg) {
   const from = msg.from?.name || 'un appareil';
   if (msg.contentType === 'text') {
     const text = msg.enc === 'v1' ? await decryptText(key, msg.text) : msg.text;
-    if (text != null) addReceived(from, 'text', text);
+    if (text != null) { addHistory({ dir: 'in', peer: from, kind: 'text', text }); toast('Nouveau texte reçu'); }
   } else if (msg.contentType === 'image' && msg.fileId) {
     const blob = await fetchFile(msg.fileId);
     if (!blob) return;
     const bytes = msg.enc === 'v1' ? await decryptBytes(key, blob) : blob;
-    if (bytes) addReceived(from, 'image', bytes);
+    if (bytes) { addHistory({ dir: 'in', peer: from, kind: 'image', img: await bytesToDataUrl(bytes) }); toast('Nouvelle image reçue'); }
   }
 }
 
@@ -98,42 +99,110 @@ async function fetchFile(fileId) {
   return new Uint8Array(await res.arrayBuffer());
 }
 
-let firstReceived = true;
-function addReceived(from, type, payload) {
-  if (firstReceived) { $('#received').innerHTML = ''; firstReceived = false; }
+// --- Historique (reçu + envoyé, recherche, persistance locale) --------------
+
+function fmtTime(d) {
+  const now = new Date();
+  const time = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === now.toDateString()) return time;
+  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' ' + time;
+}
+function fmtSize(n) {
+  if (n == null) return '';
+  if (n < 1024) return n + ' o';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' Ko';
+  return (n / 1024 / 1024).toFixed(1) + ' Mo';
+}
+function bytesToDataUrl(bytes, type = 'image/png') {
+  return new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(null); fr.readAsDataURL(new Blob([bytes], { type })); });
+}
+function blobToDataUrl(blob) {
+  return new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(null); fr.readAsDataURL(blob); });
+}
+
+function loadHistory() { try { return JSON.parse(localStorage.getItem(HIST)) || []; } catch { return []; } }
+// Sauvegarde en évitant de dépasser le quota localStorage : on retire les
+// images (les plus anciennes d'abord) tant que ça ne rentre pas.
+function saveHistory() {
+  if (history.length > 150) history = history.slice(0, 150);
+  const clone = history.map((e) => ({ ...e }));
+  for (let attempt = 0; attempt < clone.length + 2; attempt++) {
+    try { localStorage.setItem(HIST, JSON.stringify(clone)); return; }
+    catch {
+      let idx = -1;
+      for (let i = clone.length - 1; i >= 0; i--) { if (clone[i].img) { idx = i; break; } }
+      if (idx === -1) { clone.splice(Math.ceil(clone.length / 2)); if (!clone.length) return; continue; }
+      clone[idx] = { ...clone[idx], img: null, imgDropped: true };
+    }
+  }
+}
+
+let history = loadHistory();
+let histQuery = '';
+
+function addHistory(entry) {
+  entry.id = Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+  entry.ts = Date.now();
+  history.unshift(entry);
+  saveHistory();
+  renderHistory();
+}
+
+const kindLabel = (k) => (k === 'image' ? 'image' : k === 'file' ? 'fichier' : 'texte');
+function entryText(e) { return [e.text, e.filename, e.peer, kindLabel(e.kind)].filter(Boolean).join(' '); }
+
+function renderEntry(e) {
   const div = document.createElement('div');
-  div.className = 'item';
+  div.className = 'item item-' + e.dir;
   const meta = document.createElement('div');
   meta.className = 'meta';
-  meta.textContent = 'Reçu de ' + from;
+  const label = document.createElement('span');
+  label.className = 'dir dir-' + e.dir;
+  label.textContent = e.dir === 'in' ? '↓ Reçu' + (e.peer ? ' de ' + e.peer : '') : '↑ Envoyé';
+  const time = document.createElement('span');
+  time.className = 'time';
+  time.textContent = fmtTime(new Date(e.ts));
+  meta.append(label, time);
   div.appendChild(meta);
 
-  if (type === 'text') {
-    const body = document.createElement('div');
-    body.className = 'body';
-    body.textContent = payload;
+  if (e.kind === 'text') {
+    const body = document.createElement('div'); body.className = 'body'; body.textContent = e.text;
     div.appendChild(body);
-    const btn = document.createElement('button');
-    btn.className = 'copy';
-    btn.textContent = 'Copier';
+    const btn = document.createElement('button'); btn.className = 'copy'; btn.textContent = 'Copier';
     btn.onclick = async () => {
-      try { await navigator.clipboard.writeText(payload); toast('Copié ✓'); }
+      try { await navigator.clipboard.writeText(e.text); toast('Copié ✓'); }
       catch { toast('Touche « Copier » à nouveau'); }
     };
     div.appendChild(btn);
+  } else if (e.kind === 'image') {
+    if (e.img) {
+      const img = document.createElement('img'); img.src = e.img; img.loading = 'lazy';
+      div.appendChild(img);
+      const hint = document.createElement('div'); hint.className = 'meta sub';
+      hint.textContent = 'Appui long sur l’image → « Ajouter aux photos » / « Copier »';
+      div.appendChild(hint);
+    } else {
+      const body = document.createElement('div'); body.className = 'body muted'; body.textContent = '🖼️ Image (non conservée)';
+      div.appendChild(body);
+    }
   } else {
-    const url = URL.createObjectURL(new Blob([payload], { type: 'image/png' }));
-    const img = document.createElement('img');
-    img.src = url;
-    div.appendChild(img);
-    const hint = document.createElement('div');
-    hint.className = 'meta';
-    hint.style.marginTop = '8px';
-    hint.textContent = 'Appui long sur l\'image → « Ajouter aux photos » / « Copier »';
-    div.appendChild(hint);
+    const row = document.createElement('div'); row.className = 'file-row';
+    row.innerHTML = `<span class="file-ic">📄</span><span class="file-meta"><span class="file-name">${escapeHtml(e.filename || 'fichier')}</span><span class="file-size">${escapeHtml(fmtSize(e.size))}</span></span>`;
+    div.appendChild(row);
   }
-  $('#received').prepend(div);
-  toast('Nouveau contenu reçu');
+  return div;
+}
+
+function renderHistory() {
+  const el = $('#received');
+  const search = $('#histSearch');
+  if (search) search.hidden = history.length === 0;
+  if (!history.length) { el.innerHTML = '<div class="empty">Rien pour l’instant.</div>'; return; }
+  const q = histQuery.trim().toLowerCase();
+  const items = q ? history.filter((e) => entryText(e).toLowerCase().includes(q)) : history;
+  if (!items.length) { el.innerHTML = '<div class="empty">Aucun résultat.</div>'; return; }
+  el.innerHTML = '';
+  for (const e of items) el.appendChild(renderEntry(e));
 }
 
 function renderDevices(devices) {
@@ -191,6 +260,7 @@ async function doSendImage(blob) {
   } catch { toast('Serveur injoignable'); return; }
   if (res.status === 401) { toast('Phrase incorrecte'); return; }
   const j = await res.json().catch(() => ({}));
+  addHistory({ dir: 'out', kind: 'image', img: await blobToDataUrl(blob) });
   toast(j.delivered > 0 ? `Image envoyée à ${j.delivered} PC ✓` : 'Aucun PC en ligne');
 }
 
@@ -211,6 +281,7 @@ async function doSend(text) {
   } catch { toast('Serveur injoignable'); return; }
   if (res.status === 401) { toast('Phrase incorrecte'); return; }
   const j = await res.json().catch(() => ({}));
+  addHistory({ dir: 'out', kind: 'text', text });
   toast(j.delivered > 0 ? `Envoyé à ${j.delivered} PC ✓` : 'Aucun PC en ligne (ouvre ClipSync sur le PC)');
 }
 
@@ -272,6 +343,7 @@ async function doSendFile(file, target = 'all') {
       }),
     });
     const j = await res.json().catch(() => ({}));
+    addHistory({ dir: 'out', kind: 'file', filename: file.name, size: file.size });
     toast(j.delivered > 0 ? `Envoyé : ${file.name}` : 'Aucun PC en ligne');
   } catch { toast('Serveur injoignable'); }
 }
@@ -325,8 +397,13 @@ $('#cfgSave').onclick = async () => {
   await connect();
 };
 
+// --- Recherche dans l'historique -------------------------------------------
+
+$('#histSearch').addEventListener('input', (e) => { histQuery = e.target.value; renderHistory(); });
+
 // --- Démarrage -------------------------------------------------------------
 
+renderHistory();
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
