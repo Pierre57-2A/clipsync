@@ -39,6 +39,7 @@ public sealed class TrayApp : ApplicationContext
         menu.Items.Add(new ToolStripMenuItem("Ouvrir ClipSync", null, (_, _) => ShowMain()));
         menu.Items.Add(new ToolStripMenuItem("Réglages…", null, (_, _) => ShowSettings()));
         menu.Items.Add(startupItem);
+        menu.Items.Add(new ToolStripMenuItem("Ajouter au démarrage (dossier)…", null, (_, _) => OpenStartupFolder()));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("Quitter", null, (_, _) => Quit()));
 
@@ -283,6 +284,38 @@ public sealed class TrayApp : ApplicationContext
             System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{_lastSavedFile}\"");
         }
         catch { }
+    }
+
+    // Ouvre le dossier Démarrage + met un raccourci vers l'exe dans le presse-papiers,
+    // prêt à coller (Ctrl+V) — méthode simple et sans risque antivirus (c'est l'utilisateur qui colle).
+    private void OpenStartupFolder()
+    {
+        var startup = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
+        try
+        {
+            var exe = Environment.ProcessPath;
+            var progId = Type.GetTypeFromProgID("WScript.Shell");
+            if (exe is not null && progId is not null)
+            {
+                var tmp = Path.Combine(Path.GetTempPath(), "ClipSync");
+                Directory.CreateDirectory(tmp);
+                var lnk = Path.Combine(tmp, "ClipSync.lnk");
+                dynamic shell = Activator.CreateInstance(progId)!;
+                var sc = shell.CreateShortcut(lnk);
+                sc.TargetPath = exe;
+                sc.WorkingDirectory = Path.GetDirectoryName(exe) ?? "";
+                sc.Description = "ClipSync — presse-papiers partagé";
+                sc.Save();
+
+                _suppressUntil = DateTime.UtcNow.AddMilliseconds(1500); // ne pas synchroniser ce presse-papiers
+                Clipboard.SetFileDropList(new System.Collections.Specialized.StringCollection { lnk });
+                _tray.ShowBalloonTip(7000, "ClipSync",
+                    "Colle (Ctrl+V) le raccourci dans le dossier qui s'ouvre → ClipSync se lancera au démarrage.",
+                    ToolTipIcon.Info);
+            }
+        }
+        catch { }
+        try { System.Diagnostics.Process.Start("explorer.exe", startup); } catch { }
     }
 
     private static string UniquePath(string path)
