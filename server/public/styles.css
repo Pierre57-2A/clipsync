@@ -52,7 +52,7 @@ body {
 /* Topbar */
 .topbar { display: flex; align-items: center; justify-content: space-between; padding: 8px 2px 20px; }
 .brand { display: flex; align-items: center; gap: 10px; }
-.logo { color: var(--accent); display: inline-flex; }
+.logo-img { width: 28px; height: 28px; display: block; }
 .wordmark { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
 .icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
