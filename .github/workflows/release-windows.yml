@@ -39,14 +39,24 @@ jobs:
 
       - name: Nommer les deux binaires
         run: |
-          Copy-Item publish/autonome/ClipSync.exe ClipSync.exe
-          Copy-Item publish/leger/ClipSync.exe ClipSync-leger.exe
-          Get-ChildItem ClipSync*.exe | ForEach-Object { "{0,-22} {1,8:N1} Mo" -f $_.Name, ($_.Length / 1MB) }
+          Copy-Item publish/leger/ClipSync.exe ClipSync.exe
+          Copy-Item publish/autonome/ClipSync.exe ClipSync-autonome.exe
+          Get-ChildItem ClipSync*.exe | ForEach-Object { "{0,-24} {1,8:N1} Mo" -f $_.Name, ($_.Length / 1MB) }
 
       - name: Publier la release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             ClipSync.exe
-            ClipSync-leger.exe
+            ClipSync-autonome.exe
           generate_release_notes: true
+          body: |
+            ## Lequel télécharger
+
+            **`ClipSync.exe`** — environ 0,5 Mo. C'est celui-ci qu'il vous faut.
+            Il demande le [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0/runtime),
+            que Windows propose d'installer au premier lancement s'il manque.
+
+            **`ClipSync-autonome.exe`** — environ 68 Mo. Aucun prérequis, tout est
+            embarqué. À prendre si vous ne pouvez pas installer le runtime, ou pour
+            une machine hors ligne.
