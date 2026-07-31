@@ -28,7 +28,7 @@ avec statut de présence des appareils et confirmation « prêt à coller ».
 
 ## Télécharger et utiliser
 
-**iPhone** — ouvre **https://clip.lateliercbd.com** dans Safari → Partager → « Sur l'écran
+**iPhone** — ouvre **https://clipsync.lateliercbd.com** dans Safari → Partager → « Sur l'écran
 d'accueil ». C'est une **PWA installable**, aucune app à compiler, aucun Mac requis.
 
 **Windows** — télécharge `ClipSync.exe` depuis la
@@ -48,7 +48,7 @@ self-hostable — voir [`deploy/DEPLOY.md`](deploy/DEPLOY.md) (Docker + Nginx).
 | Dossier    | Rôle                        | Stack                                   | État |
 |------------|-----------------------------|-----------------------------------------|------|
 | `server/`  | Relais + **sert la PWA**    | Node.js, Fastify, WebSocket, static     | ✅ **déployé** |
-| `server/public/` | **PWA iPhone (sans Mac)** | HTML/JS + Web Crypto (E2E)         | ✅ **live** — `https://clip.lateliercbd.com` |
+| `server/public/` | **PWA iPhone (sans Mac)** | HTML/JS + Web Crypto (E2E)         | ✅ **live** — `https://clipsync.lateliercbd.com` |
 | `windows/` | Client PC (zone de notif)   | C#/.NET 8 (WinForms tray, WebSocket)    | ✅ texte + images |
 | `ios/`     | App iPhone **native**       | Swift, SwiftUI, App Intents             | ✅ code (compile sur Mac ; la PWA est l'alternative sans Mac) |
 
