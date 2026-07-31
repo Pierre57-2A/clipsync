@@ -4,7 +4,7 @@ Presse-papiers **partagé** entre un iPhone et plusieurs PC Windows.
 Synchronise **texte et images dans les deux sens**, **partout** (même hors du même réseau),
 avec statut de présence des appareils et confirmation « prêt à coller ».
 
-> Projet perso — MVP en cours de construction.
+> Projet perso, en service. Client Windows autonome et PWA iPhone, releases construites par la CI.
 
 ## Architecture
 
