@@ -34,7 +34,7 @@ sur ton iPhone (déploiement iOS 16+).
 
 ## Configurer (au 1er lancement)
 Ouvre l'app → ⚙️ Réglages :
-- **Serveur** : `wss://clip.lateliercbd.com/ws` · **HTTP** : `https://clip.lateliercbd.com`
+- **Serveur** : `wss://clipsync.lateliercbd.com/ws` · **HTTP** : `https://clipsync.lateliercbd.com`
 - **Compte** : un identifiant + un **secret** — *les mêmes que sur tes PC*.
 
 ## Assigner le triple-tap au dos

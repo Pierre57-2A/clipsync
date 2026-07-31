@@ -6,8 +6,8 @@ namespace ClipSync;
 // Une seule chose à renseigner : la « phrase de couplage » (identique sur tous les appareils).
 public sealed class Config
 {
-    public string ServerUrl { get; set; } = "wss://clip.lateliercbd.com/ws";
-    public string HttpUrl { get; set; } = "https://clip.lateliercbd.com";
+    public string ServerUrl { get; set; } = "wss://clipsync.lateliercbd.com/ws";
+    public string HttpUrl { get; set; } = "https://clipsync.lateliercbd.com";
     public string Phrase { get; set; } = ""; // relie les appareils + chiffre ; jamais envoyée telle quelle
     public string DeviceId { get; set; } = "";
     public string DeviceName { get; set; } = Environment.MachineName;
@@ -35,8 +35,11 @@ public sealed class Config
     {
         if (string.IsNullOrEmpty(DeviceId)) DeviceId = "pc-" + Guid.NewGuid().ToString("N")[..8];
         if (string.IsNullOrEmpty(DeviceName)) DeviceName = Environment.MachineName;
-        if (string.IsNullOrEmpty(ServerUrl)) ServerUrl = "wss://clip.lateliercbd.com/ws";
-        if (string.IsNullOrEmpty(HttpUrl)) HttpUrl = "https://clip.lateliercbd.com";
+        if (string.IsNullOrEmpty(ServerUrl)) ServerUrl = "wss://clipsync.lateliercbd.com/ws";
+        if (string.IsNullOrEmpty(HttpUrl)) HttpUrl = "https://clipsync.lateliercbd.com";
+        // clip.lateliercbd.com n'existe plus : les config.json deja ecrits doivent suivre.
+        ServerUrl = ServerUrl.Replace("clip.lateliercbd.com", "clipsync.lateliercbd.com");
+        HttpUrl = HttpUrl.Replace("clip.lateliercbd.com", "clipsync.lateliercbd.com");
         Save();
         return this;
     }
