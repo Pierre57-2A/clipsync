@@ -27,10 +27,26 @@ jobs:
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
           -p:EnableCompressionInSingleFile=true
-          -o ../../publish
+          -o ../../publish/autonome
+
+      - name: Publier l'executable leger
+        working-directory: windows/ClipSync
+        run: >
+          dotnet publish -c Release -r win-x64
+          --self-contained false
+          -p:PublishSingleFile=true
+          -o ../../publish/leger
+
+      - name: Nommer les deux binaires
+        run: |
+          Copy-Item publish/autonome/ClipSync.exe ClipSync.exe
+          Copy-Item publish/leger/ClipSync.exe ClipSync-leger.exe
+          Get-ChildItem ClipSync*.exe | ForEach-Object { "{0,-22} {1,8:N1} Mo" -f $_.Name, ($_.Length / 1MB) }
 
       - name: Publier la release
         uses: softprops/action-gh-release@v2
         with:
-          files: publish/ClipSync.exe
+          files: |
+            ClipSync.exe
+            ClipSync-leger.exe
           generate_release_notes: true
