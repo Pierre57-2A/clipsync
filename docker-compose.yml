@@ -7,6 +7,11 @@ services:
   relay:
     build: ./server
     restart: unless-stopped
+    # Le VPS heberge la boutique L'Atelier CBD sur le meme noyau. Sans plafond,
+    # une fuite memoire ici consomme les 11,7 Go de la machine et emporte la
+    # prod avec elle. Mesure du 02/08/2026 : 87 Mo. 512 Mo est un fusible, pas
+    # une allocation : il ne borne que ce qu'une fuite peut emporter.
+    mem_limit: 512m
     environment:
       NODE_ENV: production
       PORT: 8787
