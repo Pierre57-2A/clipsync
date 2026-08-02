@@ -1,0 +1,58 @@
+name: Déploiement VPS
+
+# Ce qui est fusionné dans main est ce qui tourne sur le VPS. Avant ce fichier,
+# le serveur restait sur son ancien commit jusqu'à ce qu'on pense à aller y
+# faire un git pull à la main.
+#
+# workflow_dispatch permet de rejouer un déploiement sans avoir à pousser un
+# commit — utile pour reprendre après un incident réseau.
+on:
+  push:
+    branches: [main]
+    # Le relais serveur uniquement : une release Windows ou une retouche de
+    # documentation n'a aucune raison de recréer un conteneur en production.
+    paths:
+      - 'server/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/deploiement-vps.yml'
+  workflow_dispatch:
+
+# Deux déploiements simultanés se marcheraient dessus sur le VPS. Le second
+# attend le premier plutôt que de l'annuler : une pile à moitié construite est
+# pire qu'un déploiement en retard.
+concurrency:
+  group: deploiement-vps
+  cancel-in-progress: false
+
+jobs:
+  deployer:
+    name: Déployer sur le VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Préparer la clé et l'empreinte du serveur
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          # L'empreinte du serveur est un secret figé, pas un ssh-keyscan à la
+          # volée : sans elle, le déploiement ferait confiance à n'importe quelle
+          # machine répondant à cette adresse.
+          printf '%s\n' "${{ secrets.VPS_HOST_KEY }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Déployer
+        run: |
+          # La commande envoyée ici est ignorée : authorized_keys impose
+          # `deploy-stack.sh clipsync` côté serveur. Cette clé ne peut donc rien
+          # faire d'autre sur le VPS, même si le secret venait à fuiter.
+          #
+          # Le script distant construit, attend que le conteneur soit sain, et
+          # revient au commit précédent si la santé n'est pas au rendez-vous.
+          # Un échec ici est un vrai échec de déploiement, pas un avertissement.
+          ssh -i ~/.ssh/id_deploy \
+              -o BatchMode=yes \
+              -o StrictHostKeyChecking=yes \
+              -o ConnectTimeout=15 \
+              "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" deployer
