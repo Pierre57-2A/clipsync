@@ -17,8 +17,16 @@ services:
       PORT: 8787
     ports:
       - "127.0.0.1:${CLIP_PORT:-8787}:8787"
+    # Les fichiers en transit sont gardes 24 h : sur disque, pas en RAM, et dans
+    # un volume pour qu'un redeploiement ne fasse pas disparaitre un envoi que
+    # l'autre appareil n'a pas encore recupere.
+    volumes:
+      - clip-data:/app/data
     logging:
       driver: json-file
       options:
         max-size: "5m"
         max-file: "2"
+
+volumes:
+  clip-data:
