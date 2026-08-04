@@ -1,8 +1,8 @@
 // Serveur relais ClipSync.
 //  - WebSocket (/ws)   : présence, relais des messages presse-papiers, accusés.
-//  - HTTP (/files)     : upload/download temporaire des images.
-// Le serveur route les messages mais est prévu pour ne jamais voir le contenu
-// en clair une fois le chiffrement de bout en bout branché (payloads opaques).
+//  - HTTP (/files)     : upload/download des fichiers et images (24 h).
+// Le serveur route les messages mais ne voit jamais le contenu en clair :
+// tout arrive déjà chiffré côté client (payloads opaques).
 
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
@@ -17,13 +17,16 @@ import { FileStore } from './files.js';
 const registry = new Registry();
 const files = new FileStore();
 
-const app = Fastify({ bodyLimit: config.maxFileBytes });
+// Le corps JSON reste petit (un texte chiffré en base64) ; les octets des
+// fichiers passent par /files, en flux, sans jamais être bufferisés ici.
+const app = Fastify({ bodyLimit: 16 * 1024 * 1024 });
+
 await app.register(websocket);
 
-// Corps binaire brut pour l'upload d'images.
-app.addContentTypeParser('application/octet-stream', { parseAs: 'buffer' }, (_req, body, done) =>
-  done(null, body),
-);
+// Upload : on rend le flux brut au lieu de bufferiser. Un fichier de 100 Mo
+// entièrement chargé en mémoire mettrait le conteneur (fusible 512 Mo) en
+// danger ; FileStore l'écrit directement sur disque et compte les octets.
+app.addContentTypeParser('application/octet-stream', (_req, payload, done) => done(null, payload));
 
 function authHttp(req) {
   const accountId = req.headers['x-account-id'];
@@ -36,17 +39,18 @@ function authHttp(req) {
 // --- Santé ------------------------------------------------------------------
 app.get('/health', async () => ({ ok: true, ts: Date.now() }));
 
-// --- Upload / download des images -------------------------------------------
+// --- Upload / download des fichiers ------------------------------------------
 app.post('/files', async (req, reply) => {
   const accountId = authHttp(req);
   if (!accountId) return reply.code(401).send({ error: 'unauthorized' });
 
-  const buf = req.body;
-  if (!Buffer.isBuffer(buf) || buf.length === 0) return reply.code(400).send({ error: 'empty body' });
-
   const contentType = String(req.headers['x-file-type'] ?? 'application/octet-stream');
-  const id = files.put(buf, contentType, { accountId });
-  return { fileId: id, ttlMs: config.fileTtlMs };
+  const res = await files.putStream(req.body, contentType, { accountId });
+  if (res.error === 'too large') return reply.code(413).send({ error: 'file too large' });
+  if (res.error === 'empty') return reply.code(400).send({ error: 'empty body' });
+  if (res.error) return reply.code(500).send({ error: 'storage failure' });
+
+  return { fileId: res.id, size: res.entry.size, ttlMs: config.fileTtlMs };
 });
 
 app.get('/files/:id', async (req, reply) => {
@@ -55,11 +59,28 @@ app.get('/files/:id', async (req, reply) => {
 
   const f = files.get(req.params.id);
   if (!f) return reply.code(404).send({ error: 'not found or expired' });
-  if (f.meta.accountId && f.meta.accountId !== accountId) return reply.code(403).send({ error: 'forbidden' });
+  if (f.accountId && f.accountId !== accountId) return reply.code(403).send({ error: 'forbidden' });
 
   reply.header('content-type', f.contentType);
-  return reply.send(f.buf);
+  reply.header('content-length', String(f.size));
+  return reply.send(files.open(f.id));
 });
+
+// --- Distribution d'un clip ---------------------------------------------------
+// Pousse aux appareils en ligne, met de côté pour ceux qui ont demandé la file
+// d'attente. Retourne de quoi renseigner l'expéditeur.
+function deliver(accountId, senderId, targets, payload) {
+  const { online, offline } = registry.resolveDelivery(accountId, senderId, targets);
+  const wire = JSON.stringify(payload);
+  for (const dev of online) safeSend(dev.socket, wire);
+  for (const dev of offline) registry.enqueue(dev, payload);
+  return {
+    delivered: online.length,
+    queued: offline.length,
+    targets: online.map((d) => d.id),
+    queuedTargets: offline.map((d) => d.id),
+  };
+}
 
 // --- Envoi d'un clip en HTTP (Raccourci Apple / App Intent / app fermée) -----
 // Permet d'envoyer sans WebSocket : idéal pour un déclencheur en arrière-plan.
@@ -72,26 +93,18 @@ app.post('/clip', async (req, reply) => {
   if (!contentType) return reply.code(400).send({ error: 'missing contentType' });
 
   const senderId = deviceId ?? 'http-sender';
-  const resolved = registry.resolveTargets(accountId, senderId, targets ?? 'all');
-  const relayed = JSON.stringify({
+  return deliver(accountId, senderId, targets ?? 'all', {
     type: 'clip',
-    messageId: randomUUID(),
-    contentType, // 'text' | 'image'
+    messageId: body.messageId ?? randomUUID(),
+    contentType, // 'text' | 'image' | 'file'
     text,
     fileId,
     fileType,
     enc, // marqueur de chiffrement ('v1' | undefined)
     meta: meta ?? {},
-    from: { deviceId: senderId, name: deviceName ?? 'iPhone' },
+    from: { deviceId: senderId, name: deviceName ?? 'un appareil' },
     ts: Date.now(),
   });
-
-  let delivered = 0;
-  for (const dev of resolved) {
-    safeSend(dev.socket, relayed);
-    delivered++;
-  }
-  return { delivered, targets: resolved.map((t) => t.id) };
 });
 
 // --- WebSocket temps réel ---------------------------------------------------
@@ -118,12 +131,12 @@ function handle(socket, msg) {
   switch (msg?.type) {
     // Authentification + arrivée en ligne.
     case 'hello': {
-      const { accountId, token, deviceId, deviceName, platform } = msg;
+      const { accountId, token, deviceId, deviceName, platform, caps } = msg;
       if (!accountId || !deviceId) return safeSend(socket, err('missing accountId/deviceId'));
       if (!registry.authenticate(String(accountId), String(token ?? ''))) {
         return safeSend(socket, err('bad pairing secret'));
       }
-      registry.connect({ accountId, deviceId, deviceName, platform }, socket);
+      registry.connect({ accountId, deviceId, deviceName, platform, caps }, socket);
       safeSend(
         socket,
         JSON.stringify({
@@ -133,6 +146,12 @@ function handle(socket, msg) {
         }),
       );
       registry.broadcastDevices(accountId);
+
+      // Ce qui est arrivé pendant que l'appareil était éteint. `queued` prévient
+      // le client qu'il rejoue du passé et ne doit rien coller automatiquement.
+      for (const payload of registry.drainQueue(accountId, deviceId)) {
+        safeSend(socket, JSON.stringify({ ...payload, queued: true }));
+      }
       break;
     }
 
@@ -153,20 +172,35 @@ function handle(socket, msg) {
       break;
     }
 
+    // Oubli d'un appareil (réglages de la PWA).
+    case 'remove-device': {
+      const ref = socket._clip;
+      if (!ref) return safeSend(socket, err('not authenticated'));
+      const target = msg.deviceId;
+      if (!target) return safeSend(socket, err('missing deviceId'));
+      if (target === ref.deviceId) return safeSend(socket, err('cannot remove self'));
+      registry.removeDevice(ref.accountId, target);
+      registry.broadcastDevices(ref.accountId);
+      safeSend(
+        socket,
+        JSON.stringify({ type: 'devices', devices: registry.listDevices(ref.accountId, ref.deviceId) }),
+      );
+      break;
+    }
+
     // Envoi d'un élément de presse-papiers vers une ou plusieurs cibles.
     case 'clip': {
       const ref = socket._clip;
       if (!ref) return safeSend(socket, err('not authenticated'));
       registry.touch(socket);
 
-      const targets = registry.resolveTargets(ref.accountId, ref.deviceId, msg.targets);
       const sender = registry.getDevice(ref.accountId, ref.deviceId);
-      const relayed = JSON.stringify({
+      const result = deliver(ref.accountId, ref.deviceId, msg.targets, {
         type: 'clip',
         messageId: msg.messageId,
-        contentType: msg.contentType, // 'text' | 'image'
+        contentType: msg.contentType, // 'text' | 'image' | 'file'
         text: msg.text, // si texte (chiffré si enc)
-        fileId: msg.fileId, // si image (à télécharger via GET /files/:id)
+        fileId: msg.fileId, // si image/fichier (à télécharger via GET /files/:id)
         fileType: msg.fileType,
         enc: msg.enc, // marqueur de chiffrement ('v1' | undefined)
         meta: msg.meta ?? {},
@@ -174,21 +208,8 @@ function handle(socket, msg) {
         ts: Date.now(),
       });
 
-      let delivered = 0;
-      for (const dev of targets) {
-        safeSend(dev.socket, relayed);
-        delivered++;
-      }
       // Accusé "distribué" (pas encore "appliqué au presse-papiers").
-      safeSend(
-        socket,
-        JSON.stringify({
-          type: 'sent',
-          messageId: msg.messageId,
-          delivered,
-          targets: targets.map((t) => t.id),
-        }),
-      );
+      safeSend(socket, JSON.stringify({ type: 'sent', messageId: msg.messageId, ...result }));
       break;
     }
 

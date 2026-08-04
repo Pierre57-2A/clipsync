@@ -1,8 +1,8 @@
 # ClipSync
 
 Presse-papiers **partagé** entre un iPhone et plusieurs PC Windows.
-Synchronise **texte et images dans les deux sens**, **partout** (même hors du même réseau),
-avec statut de présence des appareils et confirmation « prêt à coller ».
+Synchronise **texte, images et fichiers dans les deux sens**, **partout** (même hors du
+même réseau), avec statut de présence des appareils et confirmation « prêt à coller ».
 
 > Projet perso, en service. Client Windows autonome et PWA iPhone, releases construites par la CI.
 
@@ -61,12 +61,25 @@ npm start
 # → http://localhost:8787   ws://localhost:8787/ws
 ```
 
-Variables d'env utiles : `PORT` (def. 8787), `HOST` (def. 0.0.0.0).
+Variables d'env utiles : `PORT` (def. 8787), `HOST` (def. 0.0.0.0),
+`FILES_DIR` (dossier des fichiers en transit), `FILE_TTL_MS` (def. 24 h),
+`MAX_FILE_BYTES` (def. 100 Mo), `MAX_STORE_BYTES` (def. 2 Go).
+
+## Ce que fait la PWA
+
+- **Historique unifié** (reçu + envoyé) avec recherche, vignettes d'images et
+  **retéléchargement des fichiers** — y compris ceux envoyés depuis un autre appareil.
+- **Purge automatique après 23 h 59**, sauf les **favoris** (50 max, gardés indéfiniment).
+  Glisser une ligne vers la droite = favori, vers la gauche = supprimer.
+- **Environnements** : plusieurs phrases de couplage (perso, boulot…) entre
+  lesquelles basculer, chacune avec son propre historique.
+- **Livraison différée** : un fichier envoyé pendant que l'autre appareil est
+  éteint l'attend et arrive à l'ouverture de la PWA.
 
 ## Sécurité (feuille de route)
 
 - Chiffrement de bout en bout : le serveur ne voit jamais le contenu en clair (payloads opaques).
 - Appairage par QR code + secret partagé, révocation d'appareil.
-- Images stockées temporairement (TTL 5 min) puis supprimées.
+- Fichiers stockés sur disque, chiffrés côté client, supprimés après 24 h.
 
 Voir [`docs/PROTOCOL.md`](docs/PROTOCOL.md) pour le protocole de messages.

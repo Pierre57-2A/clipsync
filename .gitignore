@@ -13,6 +13,9 @@ bin/
 obj/
 *.user
 
+# Fichiers en transit stockés par le relais (jamais versionnés)
+server/data/
+
 # Logs
 *.log
 npm-debug.log*

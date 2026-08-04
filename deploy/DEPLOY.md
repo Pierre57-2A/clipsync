@@ -62,6 +62,11 @@ Dans le client Windows, éditer `%APPDATA%\ClipSync\config.json` :
 1 conteneur Node (~60 Mo), aucune base de données, port local uniquement.
 Zéro impact sur les autres projets du VPS (réseau/ports isolés).
 
+Un volume Docker (`clip-data` → `/app/data`) garde les fichiers en transit **24 h**
+pour qu'un appareil éteint au moment de l'envoi puisse encore les récupérer. Ils sont
+chiffrés côté client, effacés à l'expiration, et plafonnés à 2 Go
+(`MAX_STORE_BYTES` — au-delà, les plus anciens partent d'abord).
+
 ## Mises à jour
 ```bash
 git pull && docker compose up -d --build
