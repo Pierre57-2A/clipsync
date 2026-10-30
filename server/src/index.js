@@ -66,6 +66,20 @@ app.get('/files/:id', async (req, reply) => {
   return reply.send(files.open(f.id));
 });
 
+// Effacé dans l'historique = effacé du relais, sans attendre les 7 jours.
+// Seul un identifiant connu de l'index est supprimé : jamais un chemin reçu.
+app.delete('/files/:id', async (req, reply) => {
+  const accountId = authHttp(req);
+  if (!accountId) return reply.code(401).send({ error: 'unauthorized' });
+
+  const f = files.get(req.params.id);
+  if (!f) return reply.code(204).send(); // déjà parti
+  if (f.accountId && f.accountId !== accountId) return reply.code(403).send({ error: 'forbidden' });
+
+  files.remove(f.id);
+  return reply.code(204).send();
+});
+
 // --- Distribution d'un clip ---------------------------------------------------
 // Pousse aux appareils en ligne, met de côté pour ceux qui ont demandé la file
 // d'attente. Retourne de quoi renseigner l'expéditeur.

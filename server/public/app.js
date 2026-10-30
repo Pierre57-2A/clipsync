@@ -300,6 +300,9 @@ async function mergeDuplicate(candidate, messageId) {
   last.dup = (last.dup || 1) + 1;
   last.lastTs = candidate.ts;
   if (messageId) last.dupIds = [...(last.dupIds || []), messageId];
+  // Les copies en trop ont aussi leur fichier sur le relais : on s'en souvient
+  // pour les effacer avec l'élément.
+  if (candidate.fileId) last.dupFileIds = [...(last.dupFileIds || []), candidate.fileId];
   await db.putEntry(last);
   renderList();
   document.querySelector(`[data-dup="${last.id}"]`)?.classList.add('pop');
@@ -421,8 +424,22 @@ async function reloadEntries() {
   renderAll();
 }
 
+// Effacer un élément l'efface partout : sur cet appareil (fiche + octets) et
+// sur le relais, sans attendre les 7 jours. Hors ligne, le relais le fera seul.
+function deleteRemote(list) {
+  const ids = list.flatMap((e) => [e.fileId, ...(e.dupFileIds || [])]).filter(Boolean);
+  if (!ids.length || !token) return;
+  for (const id of ids) {
+    fetch(httpBase + '/files/' + encodeURIComponent(id), {
+      method: 'DELETE',
+      headers: { 'x-account-id': acct, 'x-token': token },
+    }).catch(() => {});
+  }
+}
+
 async function removeEntry(entry) {
   forgetUrl(entry.id);
+  deleteRemote([entry]);
   await db.deleteEntry(entry.id);
   entries = entries.filter((e) => e.id !== entry.id);
   renderAll();
@@ -1005,6 +1022,7 @@ $('#cfgClear').addEventListener('pointerdown', (ev) => {
 
 async function clearAll() {
   const n = entries.length;
+  deleteRemote(entries);
   await db.clearHistory();
   for (const id of [...imgURLs.keys()]) forgetUrl(id);
   await reloadEntries();

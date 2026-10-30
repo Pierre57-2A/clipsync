@@ -153,6 +153,11 @@ En-têtes d'authentification requis sur les deux routes :
 - Renvoie les octets avec le `Content-Type` d'origine.
 - `404` si inconnu ou expiré (**TTL 7 jours**). `403` si le fichier appartient à un autre compte.
 
+### `DELETE /files/:id` — effacement
+- Mêmes en-têtes que le download. Appelé par la PWA quand on supprime un élément
+  ou qu'on vide l'historique : le fichier quitte le relais sans attendre les 7 jours.
+- `204` (y compris si le fichier était déjà parti), `403` s'il appartient à un autre compte.
+
 > Les fichiers vivent sur disque (`FILES_DIR`, volume Docker) et leur index est
 > reconstruit au démarrage : un redéploiement ne fait pas disparaître un envoi
 > que l'autre appareil n'a pas encore récupéré. Plafond global
