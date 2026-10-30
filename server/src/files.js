@@ -1,7 +1,7 @@
 // Stockage des fichiers (et images) qui transitent entre appareils.
 //
 // Sur disque, pas en RAM : le conteneur est plafonné à 512 Mo et on garde
-// désormais les transferts 24 h pour qu'un appareil éteint au moment de l'envoi
+// désormais les transferts 7 jours pour qu'un appareil éteint au moment de l'envoi
 // puisse encore les récupérer. Deux entrées par transfert : <id>.bin (octets,
 // toujours chiffrés côté client) et <id>.json (métadonnées). L'index est
 // reconstruit au démarrage pour survivre à un redéploiement.

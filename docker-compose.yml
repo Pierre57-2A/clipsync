@@ -12,12 +12,9 @@ services:
     # prod avec elle. Mesure du 02/08/2026 : 87 Mo. 512 Mo est un fusible, pas
     # une allocation : il ne borne que ce qu'une fuite peut emporter.
     mem_limit: 512m
-    environment:
-      NODE_ENV: production
-      PORT: 8787
     ports:
-      - "127.0.0.1:${CLIP_PORT:-8787}:8787"
-    # Les fichiers en transit sont gardes 24 h : sur disque, pas en RAM, et dans
+      - "127.0.0.1:8787:8787"
+    # Les fichiers en transit sont gardes 7 jours : sur disque, pas en RAM, et dans
     # un volume pour qu'un redeploiement ne fasse pas disparaitre un envoi que
     # l'autre appareil n'a pas encore recupere.
     volumes:
