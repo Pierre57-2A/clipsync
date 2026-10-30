@@ -61,18 +61,20 @@ npm start
 # → http://localhost:8787   ws://localhost:8787/ws
 ```
 
-Variables d'env utiles : `PORT` (def. 8787), `HOST` (def. 0.0.0.0),
-`FILES_DIR` (dossier des fichiers en transit), `FILE_TTL_MS` (def. 24 h),
-`MAX_FILE_BYTES` (def. 100 Mo), `MAX_STORE_BYTES` (def. 2 Go).
+Variables d'env : `PORT` (def. 8787), `HOST` (def. 0.0.0.0) et `FILES_DIR`
+(dossier des fichiers en transit). Le reste est fixé dans `server/src/config.js` :
+fichiers gardés 7 jours, 100 Mo par fichier, 2 Go au total.
 
 ## Ce que fait la PWA
 
 - **Historique unifié** (reçu + envoyé) avec recherche, vignettes d'images et
   **retéléchargement des fichiers** — y compris ceux envoyés depuis un autre appareil.
-- **Purge automatique après 23 h 59**, sauf les **favoris** (50 max, gardés indéfiniment).
-  Glisser une ligne vers la droite = favori, vers la gauche = supprimer.
-- **Environnements** : plusieurs phrases de couplage (perso, boulot…) entre
-  lesquelles basculer, chacune avec son propre historique.
+- **7 jours glissants** : chaque élément part tout seul 7 jours après son arrivée,
+  sur l'appareil comme sur le relais. Glisser une ligne vers la gauche = supprimer.
+- **Une seule phrase de couplage**, la même sur tous les appareils (plus
+  d'environnements ni de favoris depuis la v2).
+- **Doublons regroupés** : le client Windows envoie parfois la même copie plusieurs
+  fois d'affilée ; la PWA n'en garde qu'une, marquée « ×N ».
 - **Livraison différée** : un fichier envoyé pendant que l'autre appareil est
   éteint l'attend et arrive à l'ouverture de la PWA.
 
@@ -80,6 +82,6 @@ Variables d'env utiles : `PORT` (def. 8787), `HOST` (def. 0.0.0.0),
 
 - Chiffrement de bout en bout : le serveur ne voit jamais le contenu en clair (payloads opaques).
 - Appairage par QR code + secret partagé, révocation d'appareil.
-- Fichiers stockés sur disque, chiffrés côté client, supprimés après 24 h.
+- Fichiers stockés sur disque, chiffrés côté client, supprimés après 7 jours.
 
 Voir [`docs/PROTOCOL.md`](docs/PROTOCOL.md) pour le protocole de messages.

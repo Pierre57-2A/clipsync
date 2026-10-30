@@ -1,6 +1,6 @@
 // Serveur relais ClipSync.
 //  - WebSocket (/ws)   : présence, relais des messages presse-papiers, accusés.
-//  - HTTP (/files)     : upload/download des fichiers et images (24 h).
+//  - HTTP (/files)     : upload/download des fichiers et images (7 jours).
 // Le serveur route les messages mais ne voit jamais le contenu en clair :
 // tout arrive déjà chiffré côté client (payloads opaques).
 

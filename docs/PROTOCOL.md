@@ -145,18 +145,18 @@ En-têtes d'authentification requis sur les deux routes :
 ### `POST /files` — upload
 - `Content-Type: application/octet-stream`, corps = octets bruts (déjà chiffrés).
 - En-tête `x-file-type` = type MIME d'origine (ex. `image/png`).
-- Réponse : `{ "fileId": "uuid", "size": 51234, "ttlMs": 86400000 }`
-- `413` au-delà de `MAX_FILE_BYTES` (100 Mo par défaut). Le corps est écrit **en
+- Réponse : `{ "fileId": "uuid", "size": 51234, "ttlMs": 604800000 }`
+- `413` au-delà de 100 Mo. Le corps est écrit **en
   flux** sur disque : rien n'est bufferisé en mémoire.
 
 ### `GET /files/:id` — download
 - Renvoie les octets avec le `Content-Type` d'origine.
-- `404` si inconnu ou expiré (**TTL 24 h**). `403` si le fichier appartient à un autre compte.
+- `404` si inconnu ou expiré (**TTL 7 jours**). `403` si le fichier appartient à un autre compte.
 
 > Les fichiers vivent sur disque (`FILES_DIR`, volume Docker) et leur index est
 > reconstruit au démarrage : un redéploiement ne fait pas disparaître un envoi
-> que l'autre appareil n'a pas encore récupéré. Plafond global `MAX_STORE_BYTES`
-> (2 Go) : au-delà, les plus anciens sont supprimés d'abord.
+> que l'autre appareil n'a pas encore récupéré. Plafond global
+> de 2 Go : au-delà, les plus anciens sont supprimés d'abord.
 
 ### `GET /health`
 - `{ "ok": true, "ts": 1690000000000 }`
@@ -213,8 +213,7 @@ fermée (le cas normal sur iPhone) ne recevait jamais rien.
 - Un client l'active en annonçant `caps: ["queue"]` dans son `hello`.
 - Un clip destiné à un appareil **connu mais hors ligne** qui l'a demandée est
   mis de côté, puis rejoué à sa prochaine connexion avec `queued: true`.
-- Plafonds : `MAX_QUEUE_PER_DEVICE` messages (100, les plus récents gagnent) et
-  `QUEUE_TTL_MS` (24 h). La file ne contient que des métadonnées — les octets
+- Plafonds : 100 messages par appareil (les plus récents gagnent) et 7 jours. La file ne contient que des métadonnées — les octets
   sont dans `/files`.
 - **Opt-in délibéré** : le client Windows colle automatiquement ce qu'il reçoit.
   Lui rejouer 100 messages au démarrage écraserait son presse-papiers en boucle,
