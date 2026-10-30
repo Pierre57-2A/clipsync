@@ -1,6 +1,6 @@
 // Service worker : met en cache la coquille de l'app (chargement hors-ligne).
 // N'intercepte JAMAIS l'API (/ws, /files, /clip, /health).
-const CACHE = 'clipsync-v17';
+const CACHE = 'clipsync-v18';
 const ASSETS = [
   '/', '/index.html', '/app.js', '/db.js', '/crypto.js', '/styles.css', '/logo.png',
   '/fonts/plus-jakarta-sans.woff2',
